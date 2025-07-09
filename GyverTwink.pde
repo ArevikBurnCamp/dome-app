@@ -70,6 +70,7 @@ int calibCount = 0;
 int WW, W;
 int offs = 30;
 String[] file;
+HashMap<Integer, LedPoint> globalLedMap = new HashMap<Integer, LedPoint>();
 
 // ============== ПРОГРАММА ===============
 void settings() {
@@ -112,21 +113,11 @@ void draw() {
         requestCfg();
       }
     }
-  } else ui();
-
-  // Калибровка
-  if (calibF) {
-    if (millis() - actionTmr > 400) {
-      actionTmr = millis();
-      if (calibCount == 0) makeMap(0);
-      if (calibCount > int(leds.text)) {
-        calibF = false;
-        sendData(new int[] {3, 2, calibCount/100, calibCount%100, maxX, maxY});
-        calibCount = 0;
-        return;
-      }
-      sendData(new int[] {3, 1, calibCount/100, calibCount%100, maxX, maxY});
-      calibCount++;
+  } else {
+    if (curTab == 2) {
+      drawCalibrationUI();
+    } else {
+      ui();
     }
   }
 }

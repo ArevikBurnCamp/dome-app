@@ -149,46 +149,67 @@ void effTab() {
   } else Label("No devices detected!", 15);
 }
 
+void drawCalibrationUI() {
+  // 1. Отрисовка видео с камеры
+  if (frame != null) {
+    PImage frameScaled = frame.copy();
+    frameScaled.resize(0, height * 4 / 5);
+    image(frameScaled, (width - frameScaled.width) / 2, 0);
+    
+    // 2. Оверлей с точками из globalLedMap
+    float scaleFactor = (float)frameScaled.height / frame.height;
+    float offsetX = (width - frameScaled.width) / 2.0;
+    float offsetY = 0;
+
+    stroke(255, 0, 0, 200);
+    strokeWeight(8);
+    for (LedPoint p : globalLedMap.values()) {
+      point(p.x * scaleFactor + offsetX, p.y * scaleFactor + offsetY);
+    }
+    noStroke();
+
+  } else {
+    background(0);
+    fill(255);
+    textAlign(CENTER, CENTER);
+    text("Camera not available", width / 2, height / 2);
+  }
+
+  // 3. Кнопки
+  int btnHeight = 50;
+  int btnY = height - (width / 6) - btnHeight - 10;
+  int btnWidth = (width - 40) / 3;
+
+  if (Button("Добавить ракурс", 10, btnY, btnWidth, btnHeight)) {
+    HashMap<Integer, LedPoint> newPoints = scanCurrentView();
+    stitchNewPoints(newPoints);
+  }
+  if (Button("Сбросить", 20 + btnWidth, btnY, btnWidth, btnHeight)) {
+    globalLedMap.clear();
+  }
+  if (Button("Сохранить", 30 + 2 * btnWidth, btnY, btnWidth, btnHeight)) {
+    saveMapToFile();
+  }
+}
+
 void calibTab() { 
   if (found) {
     // Камера не стартовала в PC режиме
-    if (!androidMode && Wcam == null) return;
+    if (!androidMode && Wcam == null) {
+      background(0);
+      fill(255);
+      textAlign(CENTER, CENTER);
+      text("Camera not available on PC yet", width / 2, height / 2);
+      return;
+    }
 
     if (camReady) {
       camReady = false;
       readCam();
-      makeMap(1);
-      findMax();
     }
+    
+    drawCalibrationUI();
 
-    PImage frameScaled = frame.copy();
-    frameScaled.resize(0, height*4/5);
-    image(frameScaled, (width-frameScaled.width)/2, 0);
-    if (calibF) {
-      frameScaled = ring.copy();
-      frameScaled.resize(0, height*4/5);
-      image(frameScaled, (width-frameScaled.width)/2, 0);
-    }
-    //image(frame, (width-frame.width)/2, 0);
-    //if (calibF) image(ring, (width-ring.width)/2, 0);
-
-    uiResetStep(height - width/6 - 2*_step_y);
-    uiResetX(0);
-    uiGlobalX(0);
-
-    if (Button("Start")) {
-      calibF = true;
-      sendData(new int[] {3, 0});
-      calibCount = 0;
-      actionTmr = millis() + 2000;
-    }
-
-    Label(str(calibCount*100/(int(leds.text)+1))+'%', 15, uiPrevX()+15, uiPrevStep());
-    if (Button("Stop")) {
-      calibF = false;
-      sendData(new int[] {3, 2});
-      calibCount = 0;
-    }
   } else {
     uiGlobalX(offs);
     uiResetStep(50);

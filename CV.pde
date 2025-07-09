@@ -1,3 +1,7 @@
+import gab.opencv.*;
+import java.util.ArrayList;
+import processing.core.PVector;
+
 // найти разницу
 void findMax() {
   int max = 0, maxi = 0;
@@ -55,4 +59,26 @@ PGraphics drawMap(int m) {
   }
   buf.endDraw();
   return buf;
+}
+
+ArrayList<PVector> findBrightestPoints() {
+  // Получаем изображение разницы, используя существующую функцию
+  PImage diffImage = drawMap(2);
+
+  // Предполагаем, что глобальный объект opencv доступен
+  opencv.loadImage(diffImage);
+  
+  // Применяем порог для удаления шума
+  opencv.threshold(40);
+
+  // Находим контуры
+  ArrayList<Contour> contours = opencv.findContours();
+
+  // Находим центры контуров
+  ArrayList<PVector> points = new ArrayList<PVector>();
+  for (Contour contour : contours) {
+    points.add(contour.getCentroid());
+  }
+
+  return points;
 }
