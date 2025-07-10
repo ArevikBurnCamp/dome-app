@@ -17,10 +17,6 @@ void initCam() {
     frame = createImage(Wcam.height, Wcam.width, RGB);
   }
 
-  size = frame.width / X;
-  Y = frame.height / size;
-  brMap = new int[X * Y][3];
-  ring = frame.copy();
 }
 
 void startCam() {

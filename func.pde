@@ -1,5 +1,30 @@
 import java.util.*;
 
+PVector ledMapCenter;
+float ledMapMaxRadius;
+
+void precomputeLedMapMetrics() {
+  if (globalLedMap == null || globalLedMap.isEmpty()) {
+    ledMapCenter = null;
+    ledMapMaxRadius = 0;
+    return;
+  }
+
+  ledMapCenter = new PVector(0, 0);
+  for (LedPoint p : globalLedMap.values()) {
+    ledMapCenter.add(p.x, p.y);
+  }
+  ledMapCenter.div(globalLedMap.size());
+
+  ledMapMaxRadius = 0;
+  for (LedPoint p : globalLedMap.values()) {
+    float dist = PVector.dist(ledMapCenter, new PVector(p.x, p.y));
+    if (dist > ledMapMaxRadius) {
+      ledMapMaxRadius = dist;
+    }
+  }
+}
+
 void startSearch() {
   int[] ipv4 = int(split(KetaiNet.getIP(), '.'));
   int[] mask = int(split(subnet.text, '.'));
@@ -44,6 +69,53 @@ void sendData(byte[] data) {
     delay(15);
     udp.send(data, curIP, port);
   }
+}
+
+color[] sampleLedColors() {
+  color[] ledColors = new color[TOTAL_LEDS];
+  
+  if (leds == null || ledMapCenter == null || ledMapMaxRadius == 0) {
+    // Заполняем черным, если карта не загружена или метрики не рассчитаны
+    for (int i = 0; i < TOTAL_LEDS; i++) {
+      ledColors[i] = color(0);
+    }
+    return ledColors;
+  }
+
+  for (int i = 0; i < leds.length; i++) {
+    LedPoint led = leds[i];
+    if (led == null) { // Используем 'leds' массив, он уже учитывает калибровку
+      ledColors[i] = color(0);
+      continue;
+    }
+
+    // Рассчитываем вектор от центра карты до светодиода
+    PVector ledVector = new PVector(led.x - ledMapCenter.x, led.y - ledMapCenter.y);
+
+    // Находим полярные координаты
+    float angle = ledVector.heading(); // Угол в радианах
+    float radius = ledVector.mag();
+
+    // Преобразуем в UV-координаты для текстуры
+    float u = (angle + PI) / TWO_PI; // u (0..1) - по окружности
+    float v = radius / ledMapMaxRadius;   // v (0..1) - от центра к краю
+
+    // Инвертируем v для эффекта "от краев к центру"
+    v = 1.0 - v;
+
+    // Рассчитываем итоговые (x, y) для сэмплирования с холста эффектов
+    int sample_x = (int)(u * effectsCanvas.width);
+    int sample_y = (int)(v * effectsCanvas.height);
+
+    // Ограничиваем координаты, чтобы не выйти за пределы холста
+    sample_x = constrain(sample_x, 0, effectsCanvas.width - 1);
+    sample_y = constrain(sample_y, 0, effectsCanvas.height - 1);
+
+    // Берем цвет и сохраняем
+    ledColors[i] = effectsCanvas.get(sample_x, sample_y);
+  }
+  
+  return ledColors;
 }
 
 HashMap<Integer, LedPoint> scanCurrentView() {
@@ -227,6 +299,58 @@ void saveMapToFile() {
   
   json.setJSONArray("leds", ledsArray);
   saveJSONObject(json, "data/ledmap.json");
+  
+  // Обновляем глобальный массив leds для сэмплирования
+  updateLedsArray();
+}
+
+void loadMapFromFile() {
+  try {
+    JSONObject json = loadJSONObject("data/ledmap.json");
+    if (json == null) {
+      println("ledmap.json not found or is empty.");
+      globalLedMap = new HashMap<Integer, LedPoint>();
+      updateLedsArray();
+      return;
+    }
+    
+    JSONArray ledsArray = json.getJSONArray("leds");
+    globalLedMap.clear();
+    for (int i = 0; i < ledsArray.size(); i++) {
+      JSONObject ledData = ledsArray.getJSONObject(i);
+      int id = ledData.getInt("id");
+      float x = ledData.getFloat("x");
+      float y = ledData.getFloat("y");
+      globalLedMap.put(id, new LedPoint(id, x, y));
+    }
+  } catch (Exception e) {
+    println("Error loading or parsing ledmap.json:");
+  e.printStackTrace();
+    globalLedMap = new HashMap<Integer, LedPoint>();
+  }
+  
+  updateLedsArray();
+  precomputeLedMapMetrics(); // Вызываем предрасчет после загрузки
+}
+
+void updateLedsArray() {
+  if (globalLedMap == null || globalLedMap.isEmpty()) {
+    leds = new LedPoint[0];
+    return;
+  }
+  
+  // Находим максимальный ID, чтобы определить размер массива
+  int maxId = 0;
+  for (LedPoint p : globalLedMap.values()) {
+    if (p.id > maxId) {
+      maxId = p.id;
+    }
+  }
+  
+  leds = new LedPoint[maxId + 1];
+  for (LedPoint p : globalLedMap.values()) {
+    leds[p.id] = p;
+  }
 }
 
 void sendLightCommand(ArrayList<Integer> ledsToLight, int commandId) {
