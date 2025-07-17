@@ -1,7 +1,3 @@
-import java.util.*;
-
-PVector ledMapCenter;
-float ledMapMaxRadius;
 
 void precomputeLedMapMetrics() {
   if (globalLedMap == null || globalLedMap.isEmpty()) {
@@ -26,8 +22,20 @@ void precomputeLedMapMetrics() {
 }
 
 void startSearch() {
-  int[] ipv4 = int(split(KetaiNet.getIP(), '.'));
-  int[] mask = int(split(subnet.text, '.'));
+  String[] ipParts = split(KetaiNet.getIP(), '.');
+  String[] maskParts = split(subnet.text, '.');
+
+  if (ipParts.length < 4 || maskParts.length < 4) {
+    println("Error: Invalid IP or subnet mask format.");
+    ips.clear();
+    ips.append("Invalid IP/Mask");
+    if (dropIP != null) dropIP.selected = 0;
+    searchF = false;
+    return;
+  }
+
+  int[] ipv4 = int(ipParts);
+  int[] mask = int(maskParts);
   found = false;
   curIP = "";
   brIP = "";
@@ -43,7 +51,7 @@ void startSearch() {
   ips.clear();
   ips.append("searching...");
   dropIP.selected = 0;
-  ui();
+  // ui(); // This should be called in the main draw loop
   ips.clear();
 
   curIP = brIP;
@@ -63,8 +71,8 @@ void sendData(int[] data) {
   sendData(byte(buf));
 }
 
-void sendData(byte[] data) {  
-  if (curIP.charAt(0) != 'n') {
+void sendData(byte[] data) {
+  if (curIP != null && !curIP.isEmpty() && curIP.charAt(0) != 'n') {
     udp.send(data, curIP, port);
     delay(15);
     udp.send(data, curIP, port);
@@ -73,8 +81,8 @@ void sendData(byte[] data) {
 
 color[] sampleLedColors() {
   color[] ledColors = new color[TOTAL_LEDS];
-  
-  if (leds == null || ledMapCenter == null || ledMapMaxRadius == 0) {
+
+  if (leds == null || leds.length == 0 || ledMapCenter == null || ledMapMaxRadius == 0) {
     // Заполняем черным, если карта не загружена или метрики не рассчитаны
     for (int i = 0; i < TOTAL_LEDS; i++) {
       ledColors[i] = color(0);
@@ -119,15 +127,11 @@ color[] sampleLedColors() {
 }
 
 HashMap<Integer, LedPoint> scanCurrentView() {
-    final int TOTAL_LEDS = 5250;
-    final int BIT_COUNT = 13;
-    final int PASS_COUNT = BIT_COUNT * 2;
-    
     int commandId = int(random(65535)); // Уникальный ID для этой сессии сканирования
 
     ArrayList<ArrayList<PVector>> passData = new ArrayList<ArrayList<PVector>>();
     for (int i = 0; i < PASS_COUNT; i++) {
-      ArrayList<Integer> ledsToLight = getLedsForPass(i, TOTAL_LEDS, BIT_COUNT);
+      ArrayList<Integer> ledsToLight = getLedsForPass(i);
       sendLightCommand(ledsToLight, commandId);
       delay(100);
       
@@ -258,31 +262,64 @@ HashMap<Integer, LedPoint> scanCurrentView() {
     return resultMap;
   }
 
+import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint2f;
+import org.opencv.core.Point;
+import org.opencv.calib3d.Calib3d;
+import org.opencv.core.Core;
+import java.util.List;
+
 void stitchNewPoints(HashMap<Integer, LedPoint> newPoints) {
   if (globalLedMap.isEmpty()) {
     globalLedMap.putAll(newPoints);
+    precomputeLedMapMetrics();
     return;
   }
 
-  ArrayList<PVector> globalMatchPoints = new ArrayList<PVector>();
-  ArrayList<PVector> localMatchPoints = new ArrayList<PVector>();
+  ArrayList<PVector> globalMatchPVectors = new ArrayList<PVector>();
+  ArrayList<PVector> localMatchPVectors = new ArrayList<PVector>();
 
   for (Integer id : newPoints.keySet()) {
     if (globalLedMap.containsKey(id)) {
-      globalMatchPoints.add(new PVector(globalLedMap.get(id).x, globalLedMap.get(id).y));
-      localMatchPoints.add(new PVector(newPoints.get(id).x, newPoints.get(id).y));
+      globalMatchPVectors.add(new PVector(globalLedMap.get(id).x, globalLedMap.get(id).y));
+      localMatchPVectors.add(new PVector(newPoints.get(id).x, newPoints.get(id).y));
     }
   }
 
-  if (globalMatchPoints.size() >= 4) {
-    PMatrix3D homography = opencv.findHomography(localMatchPoints, globalMatchPoints);
+  if (globalMatchPVectors.size() >= 4) {
+    MatOfPoint2f globalMatPoints = pvectorToMatOfPoint2f(globalMatchPVectors);
+    MatOfPoint2f localMatPoints = pvectorToMatOfPoint2f(localMatchPVectors);
+
+    Mat homography = Calib3d.findHomography(localMatPoints, globalMatPoints, Calib3d.RANSAC, 5);
+
+    ArrayList<PVector> allNewPointsPVectors = new ArrayList<PVector>();
+    for(LedPoint p : newPoints.values()){
+      allNewPointsPVectors.add(new PVector(p.x, p.y));
+    }
     
+    MatOfPoint2f allNewPointsMat = pvectorToMatOfPoint2f(allNewPointsPVectors);
+    MatOfPoint2f transformedPointsMat = new MatOfPoint2f();
+
+    Core.perspectiveTransform(allNewPointsMat, transformedPointsMat, homography);
+    
+    Point[] transformedPoints = transformedPointsMat.toArray();
+    int i = 0;
     for (LedPoint p : newPoints.values()) {
-      PVector transformedPoint = new PVector(p.x, p.y);
-      homography.mult(transformedPoint, transformedPoint);
-      globalLedMap.put(p.id, new LedPoint(p.id, transformedPoint.x, transformedPoint.y));
+      Point tp = transformedPoints[i];
+      globalLedMap.put(p.id, new LedPoint(p.id, (float)tp.x, (float)tp.y));
+      i++;
     }
   }
+  
+  precomputeLedMapMetrics();
+}
+
+MatOfPoint2f pvectorToMatOfPoint2f(ArrayList<PVector> points) {
+    Point[] pointArray = new Point[points.size()];
+    for (int i = 0; i < points.size(); i++) {
+        pointArray[i] = new Point(points.get(i).x, points.get(i).y);
+    }
+    return new MatOfPoint2f(pointArray);
 }
 
 void saveMapToFile() {
@@ -390,12 +427,12 @@ void sendLightCommand(ArrayList<Integer> ledsToLight, int commandId) {
   }
 }
 
-ArrayList<Integer> getLedsForPass(int pass, int totalLeds, int bitCount) {
+ArrayList<Integer> getLedsForPass(int pass) {
   ArrayList<Integer> leds = new ArrayList<Integer>();
-  boolean inverted = (pass >= bitCount);
-  int bit = inverted ? pass - bitCount : pass;
+  boolean inverted = (pass >= BIT_COUNT);
+  int bit = inverted ? pass - BIT_COUNT : pass;
 
-  for (int i = 0; i < totalLeds; i++) {
+  for (int i = 0; i < TOTAL_LEDS; i++) {
     boolean bitIsSet = ((i >> bit) & 1) == 1;
     if (inverted ? !bitIsSet : bitIsSet) {
       leds.add(i);

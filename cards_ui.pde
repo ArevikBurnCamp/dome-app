@@ -27,7 +27,7 @@ private color c_dark = color(29, 33, 44);
 private color c_mid = color(44, 58, 71);
 private color c_light= color(51, 64, 80);
 
-private color c_primary= color(33, 115, 139);
+// private color c_primary= color(33, 115, 139); // Unused
 private color c_hover = color(32, 155, 160);
 
 private color c_text_color = color(255);
@@ -50,8 +50,8 @@ private int s_stroke = 7;
 //For Cards
 int card_h = 0;
 int card_w = 0;
-private int card_x = 0;
-private int card_y = 0;
+int card_x = 0;
+int card_y = 0;
 
 private int medFontSize = 15;
 private int smallFontSize = 15;
@@ -504,10 +504,6 @@ public class TextInput {
   public TextInput(String t, String l) {
     this.hint = t;
     this.label = l;
-  }
-  
-  public TextInput(String t, boolean val) {
-    this.text = t;
   }
 
   boolean done = false;

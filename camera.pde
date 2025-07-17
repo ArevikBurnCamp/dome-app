@@ -57,3 +57,24 @@ void onCameraPreviewEvent() {
   Acam.read();
   camReady = true;
 }
+
+ArrayList<PVector> findBrightestPoints() {
+    ArrayList<PVector> points = new ArrayList<PVector>();
+    if (frame == null) return points;
+
+    opencv.loadImage(frame);
+    opencv.gray();
+    opencv.threshold(200); // Порог яркости, можно настроить
+
+    ArrayList<Contour> contours = opencv.findContours();
+    for (Contour contour : contours) {
+        PVector centroid = new PVector();
+        ArrayList<PVector> contourPoints = contour.getPoints();
+        for (PVector p : contourPoints) {
+            centroid.add(p);
+        }
+        centroid.div(contourPoints.size());
+        points.add(centroid);
+    }
+    return points;
+}

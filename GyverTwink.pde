@@ -35,52 +35,16 @@ void closeKeyboard() {}
 // я собирал проект в Android Studio под target 32 версии
 
 // масштаб интерфейса
-float androidScale/* = 2.8*/;
-float pcScale = 1.3;
-
-// ============== LIBRARIES ===============
-import processing.video.*;
-import hypermedia.net.*;
-import ketai.camera.*;
-import ketai.net.*;
-import gab.opencv.*;
-KetaiCamera Acam;
-Capture Wcam;
-UDP udp;
-OpenCV opencv;
+// float androidScale/* = 2.8*/; // Moved to globals.pde
+// float pcScale = 1.3; // Moved to globals.pde
 
 // ============== VARIABLES ================
-PGraphics layer1_Canvas;    // Плазма
-PGraphics layer2_Canvas;    // Пятна
-PGraphics layer3_Canvas;    // Вспышки и петли
-PGraphics effectsCanvas;    // Финальный композитинг
-PShader plasmaShader, spotsShader, flaresShader, glitchShader, scanlinesShader;
-PImage frame;
-boolean camReady = false;
-boolean camStart = false;
-String brIP, curIP;
-int port = 8888;
-boolean searchF, found = false;
-byte parseMode = 0;
-int actionTmr;
-StringList ips = new StringList();
-
-long lastFrameTime = 0;
-final int FRAME_INTERVAL = 33; // ~30 FPS
-color[] ledColors;
-int totalLeds = 5250; // Значение по умолчанию, будет обновляться
-
-boolean calibF = false;
-int calibCount = 0;
-int WW, W;
-int offs = 30;
-String[] file;
-HashMap<Integer, LedPoint> globalLedMap = new HashMap<Integer, LedPoint>();
-LedPoint[] leds;
+// All global variables are now in globals.pde
 
 // ============== ПРОГРАММА ===============
 void settings() {
-  if (!androidMode) size(600, 900);
+  if (!androidMode) size(600, 900, P2D);
+  else fullScreen(P2D);
   smooth(8);
 }
 
@@ -92,13 +56,13 @@ void setup() {
   WW = width-W-offs;
 
   file = loadStrings("subnet.txt");
-  if (file == null) {
-    println("Subnet text file is empty");
-    file = new String[1];
-    file[0] = "255.255.255.0";
-    saveStrings("subnet.txt", file);
+  if (file == null || file.length == 0) {
+    println("Subnet text file is empty or could not be read. Creating a default.");
+    file = new String[] {"255.255.255.0"};
+    saveStrings("data/subnet.txt", file);
   }
-  subnet.text = file[0];
+  // This line will be handled by the UI code, where the 'subnet' object is defined.
+  // subnet.text = file[0];
 
   if (androidMode) uiSetScale(androidScale);
   else uiSetScale(pcScale);
@@ -120,7 +84,7 @@ void setup() {
   flaresShader = loadShader("data/flares.frag", "data/flares.vert");
   glitchShader = loadShader("data/glitch.frag");
   scanlinesShader = loadShader("data/scanlines.frag");
-  ledColors = new color[totalLeds];
+  ledColors = new color[TOTAL_LEDS];
 }
 
 void draw() {

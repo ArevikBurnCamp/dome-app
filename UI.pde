@@ -1,11 +1,4 @@
-byte curTab = 0;
-TextInput leds = new TextInput();
-TextInput subnet = new TextInput();
-DropDown dropIP = new DropDown();
-Toggle power = new Toggle();
-Toggle offT = new Toggle();
-Slider bri = new Slider();
-Slider offS = new Slider();
+// All UI-related global variables are now in globals.pde
 
 void cfgTab() {
   uiGlobalX(offs);
@@ -28,17 +21,19 @@ void cfgTab() {
   uiResetStep(20);
   uiStep();
   uiStep();
-
-  if (found) { 
+  if (found) {
     uiStep();
     uiStep();
     uiStep();
-    if (leds.show(WW, uiStep(), W) && androidMode) openKeyboard();
-    if (leds.done()) {
+    if (ledsInput.show(WW, uiStep(), W)) {
+      if (androidMode) openKeyboard();
+    }
+    if (ledsInput.done()) {
       if (androidMode) closeKeyboard();
-      int am = int(leds.text);
-      totalLeds = am; // Обновляем глобальную переменную
-      ledColors = new color[totalLeds]; // Пересоздаем массив
+      int am = int(ledsInput.text);
+      // TOTAL_LEDS is now a constant, this line is commented out
+      // totalLeds = am; 
+      // ledColors = new color[TOTAL_LEDS]; // Re-created based on constant
       sendData(new int[] {2, 0, am/100, am % 100});
     }
     if (power.show(WW, uiStep())) sendData(new int[] {2, 1, int(power.value)});
@@ -51,13 +46,15 @@ void cfgTab() {
   uiResetStep(20);
   uiStep();
   uiStep();
-  if (subnet.show(WW, uiStep(), W) && androidMode) openKeyboard();
+  if (subnet.show(WW, uiStep(), W)) {
+    if (androidMode) openKeyboard();
+  }
   if (subnet.done()) {
     if (androidMode) closeKeyboard();
     file[0] = subnet.text;
-    saveStrings("subnet.txt", file);
+    saveStrings("data/subnet.txt", file);
   }
-  if (dropIP.show(ips.array(), WW, uiStep(), W-s_height)) {
+  if (dropIP.show(ips.toArray(new String[0]), WW, uiStep(), W-s_height)) {
     curIP = ips.get(dropIP.getSelected());
     requestCfg();
   }

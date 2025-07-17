@@ -1,23 +1,11 @@
-enum ScenarioState {
-  IDLE,
-  SUNRISE,
-  ZENITH,
-  SUNSET,
-  GLITCH
-};
-
-// ================== SCENARIO STATE ==================
-ScenarioState currentState = IDLE;
-PShader spotsShader;
-ArrayList<SunSpot> sunspots = new ArrayList<SunSpot>();
-ArrayList<Flare> flares = new ArrayList<Flare>();
-ArrayList<Loop> loops = new ArrayList<Loop>();
-
+// All scenario-related enums and global variables are now in enums.pde and globals.pde
 
 // Управление появлением пятен
 final int MAX_SPOTS = 50;
 float timeSinceLastSpot = 0;
 float nextSpotIn = 20.0; // секунд
+ArrayList<SunSpot> sunspots = new ArrayList<SunSpot>();
+
 
 // Управление появлением вспышек и петель
 final int MAX_FLARES = 20;
@@ -26,11 +14,13 @@ float timeSinceLastFlare = 0;
 float nextFlareIn = 5.0; // Вспышки чаще
 float timeSinceLastLoop = 0;
 float nextLoopIn = 15.0;
+// ArrayList<Flare> flares = new ArrayList<Flare>(); // Moved to globals.pde
+ArrayList<CoronalLoop> loops = new ArrayList<CoronalLoop>();
 
 // ================== TIMING ==================
-int scenarioStartTime = 0;
+long scenarioStartTime = 0;
 float breathingValue = 1.0;
-float lastFrameTime = 0;
+// lastFrameTime is now global
 
 // Длительность фаз в миллисекундах
 final int SUNRISE_DURATION = 30000; // 30 секунд
@@ -38,14 +28,9 @@ final int ZENITH_DURATION = 60000;  // 1 минута (условно)
 final int SUNSET_DURATION = 30000;  // 30 секунд
 
 // ================== GLITCH STATE ==================
-enum GlitchPhase {
-  INFECTION,
-  MAIN,
-  RECOVERY
-}
 GlitchPhase currentGlitchPhase;
-int glitchPhaseStartTime = 0;
-float glitchScanlinePos = 0.0;
+long glitchPhaseStartTime = 0;
+// glitchScanlinePos is now global
 
 // Длительность фаз глитча
 final int GLITCH_INFECTION_DURATION = 2000; // 2 секунды
@@ -57,12 +42,12 @@ float timeSinceLastGlitch = 0;
 float nextGlitchIn = 600.0; // 10 минут
 
 void updateScenario() {
-  if (currentState == IDLE) {
+  if (currentState == ScenarioState.IDLE) {
     return;
   }
 
-  int currentTime = millis();
-  int elapsedTime = currentTime - scenarioStartTime;
+  long currentTime = millis();
+  long elapsedTime = currentTime - scenarioStartTime;
 
   switch (currentState) {
     case SUNRISE:
@@ -78,7 +63,7 @@ void updateScenario() {
 
       } else {
         // Переход в зенит
-        currentState = ZENITH;
+        currentState = ScenarioState.ZENITH;
         scenarioStartTime = currentTime;
         plasmaShader.set("waveProgress", 1.0); // Убедимся, что волна завершилась
         println("Scenario: ZENITH started");
@@ -87,14 +72,14 @@ void updateScenario() {
 
       case ZENITH:
         // --- Обновление времени ---
-        float currentTimeSeconds = millis() / 1000.0;
-        float dt = currentTimeSeconds - lastFrameTime;
-        lastFrameTime = currentTimeSeconds;
+        float currentTimeSeconds = millis() / 1000.0f;
+        float dt = (lastFrameTime > 0) ? (currentTimeSeconds - (lastFrameTime / 1000.0f)) : 0;
+        lastFrameTime = millis();
 
         // --- Проверка на запуск глитча ---
         timeSinceLastGlitch += dt;
         if (timeSinceLastGlitch > nextGlitchIn) {
-          currentState = GLITCH;
+          currentState = ScenarioState.GLITCH;
           currentGlitchPhase = GlitchPhase.INFECTION;
           glitchPhaseStartTime = currentTime;
           timeSinceLastGlitch = 0;
@@ -118,7 +103,7 @@ void updateScenario() {
           
         } else {
           // Переход в закат
-          currentState = SUNSET;
+          currentState = ScenarioState.SUNSET;
           scenarioStartTime = currentTime;
           println("Scenario: SUNSET started");
         }
@@ -137,14 +122,14 @@ void updateScenario() {
 
         } else {
           // Завершение сценария
-          currentState = IDLE;
+          currentState = ScenarioState.IDLE;
           plasmaShader.set("brightness", 0.0); // Убедимся, что все погасло
           println("Scenario: Finished");
         }
         break;
 
       case GLITCH:
-        int glitchElapsedTime = currentTime - glitchPhaseStartTime;
+        long glitchElapsedTime = currentTime - glitchPhaseStartTime;
         switch (currentGlitchPhase) {
           case INFECTION:
             if (glitchElapsedTime < GLITCH_INFECTION_DURATION) {
@@ -167,7 +152,7 @@ void updateScenario() {
               glitchScanlinePos = 1.0 - ((float)glitchElapsedTime / GLITCH_RECOVERY_DURATION);
             } else {
               // Возвращаемся в зенит
-              currentState = ZENITH;
+              currentState = ScenarioState.ZENITH;
               scenarioStartTime = currentTime; // Сбрасываем таймер зенита
               println("Scenario: GLITCH finished, returning to ZENITH");
             }
@@ -248,7 +233,7 @@ void updateFlaresAndLoops(float dt) {
   // 2. Создание новых петель
   timeSinceLastLoop += dt;
   if (loops.size() < MAX_LOOPS && timeSinceLastLoop > nextLoopIn) {
-    loops.add(new Loop());
+    loops.add(new CoronalLoop());
     timeSinceLastLoop = 0;
     nextLoopIn = random(10, 20);
     println("New loop created. Total: " + loops.size());
@@ -263,7 +248,7 @@ void updateFlaresAndLoops(float dt) {
     }
   }
   for (int i = loops.size() - 1; i >= 0; i--) {
-    Loop l = loops.get(i);
+    CoronalLoop l = loops.get(i);
     l.update(dt);
     if (l.isDead()) {
       loops.remove(i);
@@ -295,7 +280,7 @@ void updateFlaresAndLoops(float dt) {
     float[] loop_points = new float[MAX_LOOPS * 4]; // p1.x, p1.y, p2.x, p2.y
     float[] loop_props = new float[MAX_LOOPS * 2]; // age, lifetime
     for (int i = 0; i < loops.size(); i++) {
-      Loop l = loops.get(i);
+      CoronalLoop l = loops.get(i);
       loop_points[i*4 + 0] = l.p1.x;
       loop_points[i*4 + 1] = l.p1.y;
       loop_points[i*4 + 2] = l.p2.x;
@@ -316,14 +301,12 @@ class Flare {
   PVector direction;
   float lifetime;
   float age;
-  float speed;
 
   Flare() {
     startPoint = new PVector(random(effectsCanvas.width), random(effectsCanvas.height));
     direction = PVector.random2D();
     lifetime = random(0.5, 1.5); // Короткая жизнь
     age = 0;
-    speed = random(200, 400); // Быстрые
   }
 
   void update(float dt) {
@@ -335,41 +318,14 @@ class Flare {
   }
 }
 
-class Loop {
-  PVector p1, p2;
-  float lifetime;
-  float age;
-
-  Loop() {
-    float w = effectsCanvas.width;
-    float h = effectsCanvas.height;
-    p1 = new PVector(random(w), random(h));
-    // Вторая точка на некотором расстоянии
-    p2 = PVector.add(p1, PVector.random2D().mult(random(100, 300)));
-    // Ограничиваем, чтобы не выходить за холст
-    p2.x = constrain(p2.x, 0, w);
-    p2.y = constrain(p2.y, 0, h);
-
-    lifetime = random(8, 15); // Долгая жизнь
-    age = 0;
-  }
-
-  void update(float dt) {
-    age += dt;
-  }
-
-  boolean isDead() {
-    return age > lifetime;
-  }
-}
 
 
 void startSunrise() {
-  if (currentState == IDLE) {
-    currentState = SUNRISE;
+  if (currentState == ScenarioState.IDLE) {
+    currentState = ScenarioState.SUNRISE;
     scenarioStartTime = millis();
-    lastFrameTime = millis() / 1000.0;
-    sunspots.clear(); // Очищаем пятна при новом запуске
+    lastFrameTime = millis();
+    sunspots.clear();
     flares.clear();
     loops.clear();
     println("Scenario: SUNRISE started");

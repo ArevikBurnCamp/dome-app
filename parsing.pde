@@ -1,35 +1,40 @@
 void receive(byte[] ubuf) {
+  if (ubuf == null || ubuf.length < 3) return;
   if (ubuf[0] != 'G' || ubuf[1] != 'T') return;
-  int[] data = new int[10];
-  for (int i = 0; i < ubuf.length - 2; i++) {
-    data[i] = int(ubuf[i+2]);
-    //println(data[i]);
+
+  ArrayList<Integer> data = new ArrayList<Integer>();
+  for (int i = 2; i < ubuf.length; i++) {
+    data.add(int(ubuf[i]));
   }
 
-  if (parseMode != data[0]) return;
+  if (data.size() == 0) return;
+  if (parseMode != data.get(0)) return;
 
-  switch (data[0]) {
+  switch (data.get(0)) {
   case 0: // Поиск
-    String ip = brIP.substring(0, brIP.lastIndexOf('.')+1) + str(data[1]);
+    if (data.size() < 2) return;
+    String ip = brIP.substring(0, brIP.lastIndexOf('.')+1) + str(data.get(1));
     if (!ips.hasValue(ip)) ips.append(ip);
     break;
 
   case 1: // Настройки 
+    if (data.size() < 10) return;
     searchF = false;
-    leds.text = str(data[1] * 100 + data[2]);
-    power.value = boolean(data[3]);
-    bri.value = data[4];
-    auto.value = boolean(data[5]);
-    rnd.value = boolean(data[6]);
-    prd.value = data[7];
-    offT.value = boolean(data[8]);
-    offS.value = data[9];
+    ledsInput.text = str(data.get(1) * 100 + data.get(2));
+    power.value = boolean(data.get(3));
+    bri.value = data.get(4);
+    auto.value = boolean(data.get(5));
+    rnd.value = boolean(data.get(6));
+    prd.value = data.get(7);
+    offT.value = boolean(data.get(8));
+    offS.value = data.get(9);
     break;
 
   case 4: // Эффект
-    fav.value = boolean(data[1]);
-    scl.value = data[2];
-    spd.value = data[3];
+    if (data.size() < 4) return;
+    fav.value = boolean(data.get(1));
+    scl.value = data.get(2);
+    spd.value = data.get(3);
     break;
   }
 }
